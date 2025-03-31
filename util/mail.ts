@@ -1,18 +1,16 @@
+import { execSync } from "node:child_process";
+
 export async function send(options: { subject: string; to?: string; body: string }) {
-    const to = options.to ?? Deno.env.get("MAIL_TO");
+    const to = options.to ?? process.env["MAIL_TO"];
     if (!to) {
         return;
     }
+
     const content = `Subject: ${options.subject}
 ${options.body}`;
-    const cmd = new Deno.Command("sendmail", {
-        args: [to],
-        stdin: "piped",
+    execSync(`sendmail ${to}`, {
+        input: content,
     });
-    const process = cmd.spawn();
-    await process.stdin.getWriter().write(new TextEncoder().encode(content));
-    process.stdin.close();
-    await process.status;
 }
 
 export function sendError(e: unknown) {

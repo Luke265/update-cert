@@ -1,12 +1,13 @@
 import { send, sendError } from "../util/mail.ts";
+import { Resolver } from "node:dns/promises";
 
 async function execute() {
     try {
-        const CERTBOT_DOMAIN = Deno.env.get("CERTBOT_DOMAIN");
+        const CERTBOT_DOMAIN = process.env["CERTBOT_DOMAIN"];
         if (!CERTBOT_DOMAIN) {
             throw new Error("CERTBOT_DOMAIN environment variable is undefined");
         }
-        const CERTBOT_VALIDATION = Deno.env.get("CERTBOT_VALIDATION");
+        const CERTBOT_VALIDATION = process.env["CERTBOT_VALIDATION"];
         if (!CERTBOT_VALIDATION) {
             throw new Error("CERTBOT_VALIDATION environment variable is undefined");
         }
@@ -17,16 +18,18 @@ async function execute() {
         let i = 20;
         while (i > 0) {
             try {
-                const result = await Deno.resolveDns("_acme-challenge." + CERTBOT_DOMAIN, "TXT", {
-                    nameServer: { ipAddr: "8.8.8.8" },
-                });
+                const resolver = new Resolver();
+                resolver.setServers(["8.8.8.8"]);
+                const result = await resolver.resolveTxt(`_acme-challenge.${CERTBOT_DOMAIN}`);
                 if (result.some(([challenge]) => challenge === CERTBOT_VALIDATION)) {
+                    await send({
+                        subject: "Cert challenge completed",
+                        body: `Certificate challenge "${CERTBOT_VALIDATION}" for ${CERTBOT_DOMAIN} has been completed`,
+                    });
                     return;
                 }
             } catch (e) {
-                if (!(e instanceof Deno.errors.NotFound)) {
-                    throw e;
-                }
+                console.error("DNS Resolution Error:", e);
             }
             console.log(`Waiting ${i--}...`);
             await new Promise((resolve) => setTimeout(resolve, 1000 * 60));

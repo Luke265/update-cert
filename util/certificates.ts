@@ -1,3 +1,5 @@
+import { execSync } from "node:child_process";
+
 export interface Certificate {
     name: string;
     serial: string;
@@ -9,12 +11,8 @@ export interface Certificate {
 }
 
 export async function getCertificates(): Promise<Certificate[]> {
-    const cmd = new Deno.Command("/usr/bin/certbot", {
-        args: ["certificates"],
-        stdout: "piped",
-    });
-    const out = await cmd.output();
-    const output = new TextDecoder().decode(out.stdout);
+    const cmd = execSync("/usr/bin/certbot certificates");
+    const output = cmd.toString();
     const result: Record<string, string>[] = [];
     output.split("\n").reduce((formatted, line) => {
         const columns = line.trim().split(": ");

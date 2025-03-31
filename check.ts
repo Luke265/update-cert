@@ -2,15 +2,19 @@ import { getCertificates } from "./util/certificates.ts";
 import { sendError } from "./util/mail.ts";
 import { renewWild as renewWildIV } from "./iv/renew.ts";
 import { renewWild as renewWildHostinger } from "./iv/renew.ts";
-import { z } from "https://deno.land/x/zod@v3.24.1/mod.ts";
-import * as path from "jsr:@std/path";
-import { difference } from "jsr:@std/datetime";
-import { parseArgs } from "jsr:@std/cli";
+import { z } from "zod";
+import path from "node:path";
+import fsp from "node:fs/promises";
+import { DateTime } from "luxon";
+import yargs from "yargs";
+import { hideBin } from "yargs/helpers";
 
 try {
-    const args = parseArgs(Deno.args, {
-        string: ["config"],
-    });
+    const args = await yargs(hideBin(process.argv))
+        .option("config", {
+            type: "string",
+        })
+        .parse();
     const parsed = await loadConfig(args.config ?? path.join(import.meta.dirname ?? "./", "config.json"));
     const certificates = await getCertificates();
     for (const c of parsed) {
@@ -19,9 +23,10 @@ try {
             console.error(`Certificate for domain ${c.domain} not found`);
             continue;
         }
-        const diff = difference(new Date(), cert?.expiryDate ?? new Date());
+        const diff = DateTime.fromJSDate(cert?.expiryDate ?? new Date()).diffNow();
         console.log("Remaining days", diff.days);
         if (!diff.days || diff.days < 14) {
+            console.log("Renewing", c.type);
             if (c.type === "iv") {
                 await renewWildIV(c);
             } else if (c.type === "hostinger") {
@@ -45,7 +50,6 @@ async function loadConfig(filePath: string) {
             }),
         })
     );
-    const jsonData = await Deno.readTextFile(filePath);
-    const parsedData = JSON.parse(jsonData);
-    return schema.parse(parsedData);
+    const data = await fsp.readFile(filePath);
+    return schema.parse(JSON.parse(data.toString()));
 }

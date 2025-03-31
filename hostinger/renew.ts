@@ -1,19 +1,19 @@
 import { send } from "../util/mail.ts";
+import { execSync, spawnSync } from "node:child_process";
 
 export async function renewWild(config: { domain: string }) {
     await send({
         subject: "Cert renewal started",
         body: `Certificate renewal process started`,
     });
-    let cmd = new Deno.Command("/usr/bin/certbot", {
-        env: {
-            DOMAIN: config.domain,
-        },
-        args: [
+    spawnSync(
+        `/usr/bin/certbot`,
+        [
             "certonly",
+            "--non-interactive",
             "--manual",
             "--manual-auth-hook",
-            `deno run -A ${import.meta.dirname}/execute.ts`,
+            `/usr/local/bin/node ${import.meta.dirname}/execute.ts`,
             "--preferred-challenges",
             "dns-01",
             "--server",
@@ -23,27 +23,16 @@ export async function renewWild(config: { domain: string }) {
             "-d",
             config.domain,
         ],
-        stdout: "piped",
-    });
-    (await cmd.output()).code;
-
-    (await cmd.output()).code;
-
-    cmd = new Deno.Command("service", {
-        args: ["nginx", "restart"],
-        stdout: "piped",
-    });
-    (await cmd.output()).code;
-    cmd = new Deno.Command("/etc/init.d/dovecot", {
-        args: ["restart"],
-        stdout: "piped",
-    });
-    (await cmd.output()).code;
-    cmd = new Deno.Command("service", {
-        args: ["postfix", "restart"],
-        stdout: "piped",
-    });
-    (await cmd.output()).code;
+        {
+            env: {
+                MAIL_TO: process.env["MAIL_TO"],
+                DOMAIN: config.domain,
+            },
+        }
+    );
+    execSync(`service nginx restart`);
+    execSync(`/etc/init.d/dovecot restart`);
+    execSync(`service postfix restart`);
     await send({
         subject: "Cert renewal successful",
         body: `Certificate renewal has been completed successfully`,

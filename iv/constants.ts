@@ -1,4 +1,4 @@
-const domainIdStr = Deno.env.get("DOMAIN_ID");
+const domainIdStr = process.env["DOMAIN_ID"];
 if (!domainIdStr) {
     throw new Error("DOMAIN_ID env variable is undefined");
 }
